@@ -1,0 +1,235 @@
+/* ------------------------- Jennifer Onyeama, Abuja, Nigeria ---------------------------
+
+	Author: Jennifer Onyeama
+
+  Reviewer: Godwin Ozor, Enugu State University of Science and Technology
+	
+	STATA code to Analyze the Dependency between Political Participation and Tertiary 
+	Education in Third-World Countries?
+	
+	DATASET: Anti-Apathy PDP NIgeria Campaign, 2018
+
+----------------------------------------------------------------------------- */
+
+* Load dataset: Anti-Apathy PDP NIgeria Campaign, 2018
+use "data/anti_apathy_PDP.dta, clear
+
+* Save file in "code" subsection of the SQRM folder
+cap log using "code/Elina_Biondi_Bihe.log", name(final) replace
+
+* Rename all the variables for easier edits:
+ren bti_pp pparticipation
+ren bl_lhc_25mf tschool
+ren bti_psi psintegration
+ren bti_rol rol
+ren mad_gdppc gdppercapita
+
+* ==============
+* MISSING VALUES
+* ==============
+
+* Check for number of observations and pattern of missing values
+misstable pattern pparticipation tschool psintegration rol gdppercapita, freq
+* Drop missing values
+drop if mi(pparticipation, tschool, psintegration, rol, gdppercapita)
+* Explore dataset again after deleting missing values
+tab pparticipation 
+* Describe data contents, with compact report on the variables used
+codebook pparticipation tschool psintegration rol gdppercapita
+* Check final sample size 
+count
+* Final number of observations: N = 104, appropriate for data analysis
+
+* =====================
+* VARIABLES DESCRIPTION
+* =====================
+
+* Dependent variable: political participation
+* Create a histogram for the distribution of Political Participation, shown in 
+* percentage
+hist pparticipation, freq normal name(pparticipation, replace)
+* Explore the independent variables: 
+* (i) Tertiary school complete (25+ female&male) - continuous
+fre tschool
+* (ii) Political and social integration - continuous 
+su psintegration
+* (iii) Rule of law - continuous
+su rol
+* (iv) "GDP per Capita" - continuous 
+su gdppercapita
+
+* =======
+* LOG GDP
+* =======
+
+* In the case of GDP per capita, log units are more informative than metric ones 
+* to identify the relationship between GDP per capita and political participa-
+* tion. Therefore, we use a logarithmic scale for GDP per capita.
+gen log_gdppercapita = ln(gdppercapita)
+la var log_gdppercapita "GDP per capita (log)"
+recode ht_region (6/10 = 6), gen(region)
+
+* Segragate into regions - minus North America and West Europe - Just to have 
+* an idea of the regional differences, not to be included in the research report 
+* because the number of observations are not enough. 
+la var region "Geographical region"
+la val region region
+la def region 1 "E. Europe and PSU" 2 "Lat. America" ///
+    3 "N. Africa and M. East" 4 "Sub-Sah. Africa" ///
+    5 "W. Europe and N. America" 6 "Asia, Pacific and Carribean" ///
+    , replace
+
+* Look at the mean of each variable, export results
+stab using final_stats.txt, replace ///
+    mean(pparticipation tschool psintegration rol log_gdppercapita) 
+
+* ================
+* ASSOCIATION TEST
+* ================
+
+* Use pairwise correlation test
+pwcorr pparticipation tschool psintegration rol log_gdppercapita, sig 
+ 
+* Generate scatterplot matrix
+gr mat pparticipation tschool psintegration rol log_gdppercapita, ///
+	half name(scattergram_mattrix, replace)
+
+* Export results:
+eststo clear
+qui estpost correlate pparticipation tschool psintegration rol /// 
+	log_gdppercapita, matrix listwise
+esttab using "final_estpost.txt", unstack not compress label replace
+
+* ==========
+* REGRESSION
+* ==========
+
+* Simple linear regression
+* Look at the regression results in addition to the fitted value between our 
+* dependent variable: Political Participation and the key independent variable: 
+* Tertiary School Complete
+sc pparticipation tschool || lfit pparticipation tschool, ///
+	name(simplereg1, replace)
+reg pparticipation tschool
+
+* Political Participattion with Political and Social integration
+sc pparticipation psintegration || lfit pparticipation psintegration, ///
+	name(simplereg2, replace)
+reg pparticipation psintegration
+
+* Political Participation and Rule of Law
+sc pparticipation rol || lfit pparticipation rol, ///
+	name(simplereg3, replace)
+reg pparticipation rol
+
+* Political Participation and GDP per Capita (logged)
+sc pparticipation log_gdppercapita || lfit pparticipation log_gdppercapita, ///
+	name(simplereg4, replace)
+reg pparticipation log_gdppercapita
+
+* Multiple linear regression
+* Look at the multiple linear regression of all variables
+reg pparticipation tschool psintegration rol log_gdppercapita
+*recall the model with clearer output
+reg
+leanout:
+* Look at the standardized multiple linear regression results
+reg pparticipation tschool psintegration rol log_gdppercapita, beta
+
+* We try to inspect different geographical region from the observation to see
+* if there is particular patterns worthy of analysis from our main IV
+tw (sc pparticipation tschool if region == 1, ms(O)) ///
+	(sc pparticipation tschool if region == 2, ms(O)) ///
+	(sc pparticipation tschool if region == 3, ms(O)) ///
+	(sc pparticipation tschool if region == 4, ms(O)) ///
+    (sc pparticipation tschool if region == 6, ms(O)) ///
+    (sc pparticipation tschool if !inlist(region,1,2,3,4,6), mc(gs10)) ///
+    (lfit pparticipation tschool, lc(gs10)), ///
+    legend(order(1 "E. Europe and PSU" 2 "Lat America" ///
+    3 "N. Africa and M. East" 4 "Sub-sah Africa" ///
+    5 "Asia" 6 "Rest of sample" 7 "Fitted values") row(3)) ///
+    yti("Political Participation") name(reg_geo1, replace)
+    
+* Altough this is not included in our research paper due to limited number of 
+* observation in the dataset, we can concur that there are patterns worthy of 
+* further inspection, such as that most Latin American countries are located 
+* above the regression line, or that Sub-Saharan countries have higher political 
+* particiation despite having lower level of education compared to Asian 
+* countries.
+
+* =====================
+* REGRESSION DIAGNOSTIC
+* =====================
+* Rerun the regression model 
+reg pparticipation tschool psintegration rol log_gdppercapita
+* Store fitted values
+cap drop yhat
+predict yhat
+
+* ========
+* RESIDUAL
+* ========
+
+* Store the unstandardized residuals
+cap drop r
+predict r, resid
+* Assess the normality of residuals
+kdensity r, norm legend(off) ti("") ///
+    name(diag_kdens, replace)
+kdensity r, norm legend(off) ti("") ///
+    name(diag_kdens, replace)
+* Homoskedasticity of the residuals versus fitted values (DV).
+rvfplot, yline(0) ms(i) mlab(cname) name(diag_rvf, replace)
+* Store the standardized residuals.
+cap drop rsta
+predict rsta, rsta
+
+* ===============
+* HETEROSKEDACITY
+* ===============
+
+* Identify outliers beyond the two standard deviation units, to look which 
+* countries are significantly different
+sc rsta yhat, yline(-2 2) || sc rsta yhat if abs(rsta) > 2, ///
+    ylab(-3(1)3) mlab(cname) legend(lab(2 "Outliers")) ///
+    name(diag_rsta, replace)
+
+* To further inspect outliars
+sc r tschool, ///
+	yline(0) mlab(cname) legend(lab(2 "Outliers")) ///
+	name(diag_edu1, replace)
+lowess rsta tschool, bw(.5) yline(0) ///
+	name(diag_edu2, replace)
+
+* ================
+* MULTICOLINEARITY
+* ================
+
+* Check multicollinearity between the independent variables	
+vif 
+* All < 10, no multicollinearity
+
+* ======================================
+* REGRESSION MODEL AND EXPORTING RESULTS
+* ======================================
+
+* Regression models
+eststo clear
+eststo M1: qui reg pparticipation tschool
+leanout:
+eststo M2: qui reg pparticipation tschool psintegration rol log_gdppercapita
+leanout:
+esttab M1 M2, lab b(2) se(2) sca(RMSE) ///
+    mti("Baseline" "Control")
+    
+esttab M1 M2 using final_regressions.txt, replace /// 
+	lab b(2) se(2) sca(RMSE) ///
+    mti("Baseline" "Control")
+    
+* =======
+* CLOSING
+* =======
+
+* cap log close
+* view code/Elina_Biondi_Bihe.log.log
+* exit, clear
