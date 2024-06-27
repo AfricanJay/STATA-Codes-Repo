@@ -1,0 +1,115 @@
+#Created by Jennifer Onyeama
+#Time series Data Analysis
+#use the stock market data
+
+
+use "sp500.dta", clear
+
+
+** Dealing with dates, Starting with the string case: -datestring- is a simple string variable here, it has nothing to do with dates... 
+*making usable
+
+split datestring, parse(-)
+
+ 
+* Step 2: rename and destring them:
+
+destring datestring*, replace
+rename datestring1 year
+rename datestring2 month
+rename datestring3 day
+
+* Step 3: create a date varaible using the 'mdy' function:
+generate date_new = mdy(month, day, year)
+
+* checking it:
+browse year month day date_new
+	 
+* Step 4: for a more intuitive way of display, changing the format
+
+format date_new %td /*%td means that the variable contains date on daily frequency*/
+
+browse year month day date date_new /*Now it is okay, and is the same as our original -date- variable.*/
+
+*create a day variable:
+generate day_new = day(date)
+
+* Or a month or a year variable:
+generate month_new = month(date)
+
+* Or year:
+generate year_new = year(date)
+
+
+* Defining time series (TS)
+* should define the time series structure, i.e...
+*name a variable that defines time
+
+tsset date
+
+*time variable cannot contain duplicates
+
+generate x = ym(year, month)
+tsset x
+
+*query whether date is defined or not:
+
+tsset /*So we have daily data between 2006 and 2016, with some gaps.*/
+count /*We have 2519 days, i.e. observations.*/
+
+
+*Filling gaps using the 'tsfill' command.
+
+tsfill
+count /*Now we have 3655 days, i.e. observations, and the newly created ones conatin missings for all other variables.*/
+
+*drop some variables that are not needed
+
+drop datestring date_new day_new month_new year_new x
+
+
+*Time series operators
+
+*** Lag operator:
+
+generate lvalue = l.value /*1st lag*/
+generate llvalue = l2.value /*2nd lag*/
+
+
+*** Lead operator:
+generate fvalue = f.value /*1st lead*/
+generate ffvalue = f2.value /*2nd lead*/
+
+
+*** Difference operator
+generate dvalue = d.value /* t-(t-1) */
+generate ddvalue = d2.value /* [t-(t-1)]-[(t-1)-(t-2)] */
+
+
+*** Seasonal difference operator
+generate svalue = s.value /* t-(t-1) */
+generate ssvalue = s2.value /* t-(t-2) */
+
+
+* important commands
+*** Using the 'pperron' command to perform a Phillips-Perron unit-root test (subsection 12.U1)
+
+pperron value /*We cannot reject the null of unit root.*/
+
+*** Using the 'tsreport' command to get elementary description of the TS aspects of data
+
+tsreport
+
+*** Using the 'tsappend' command to add observations (i.e. extra rows) 
+
+tsappend, add(10) /*It adds 10 new observations (days) to the end of our current TS*/
+
+*** Using the 'tsline' command to create a line graph
+tsline value
+
+*** Using the 'corrgram' commandto calculate serial correlation (subsection 12.6)
+
+corrgram value, lags(3) /*1st-, 2nd-, and 3rd-order serial correlation and partial serial correlation*/ 
+
+*** Using the 'newey' command to estimate OLS regression with Newey-West standard errors (subsection 12.7)
+
